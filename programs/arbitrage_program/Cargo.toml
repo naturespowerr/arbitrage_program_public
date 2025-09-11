@@ -1,0 +1,29 @@
+[package]
+name = "arbitrage_program"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "arbitrage_program"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-spl/idl-build"]
+
+
+[dependencies]
+anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-spl = "0.31.0"
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
+uint = { git = "https://github.com/raydium-io/parity-common", package = "uint" }
+
+ruint = { version = "1.3.0" }
+bytemuck = { version = "^1.16", features = ["derive", "min_const_generics"] }
+num-traits = { version = "^0.2" }
+num-integer = { version = "0.1.45" }
