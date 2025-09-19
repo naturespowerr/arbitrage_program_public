@@ -1,139 +1,139 @@
-# Arbitrage Program - Демонстрационная версия
+# Arbitrage Program - Demo Version
 
-## Обзор
+## Overview
 
-Эта программа представляет собой **обрезанную демонстрационную версию** полноценной Rust программы для арбитража на блокчейне Solana. Программа написана мной полностью с нуля и демонстрирует арбитраж между пулами **Pumpswap** и **Raydium AMM**.
+This program is a **trimmed demo version** of a full-featured Rust program for arbitrage on the Solana blockchain. The program was written by me completely from scratch and demonstrates arbitrage between **Pumpswap** and **Raydium AMM** pools.
 
-## Поддерживаемые DEX
+## Supported DEXs
 
-### В демонстрационной версии:
+### In demo version:
 - **Pumpswap**
 - **Raydium AMM**
 
-### В полной версии дополнительно поддерживаются:
+### Additionally supported in full version:
 - **Raydium CLMM**
 - **Raydium CPMM**
 - **Meteora DLMM**
 - **Meteora DAMM V2**
 
-## Алгоритм арбитража
+## Arbitrage Algorithm
 
-### Универсальный алгоритм оптимизации
+### Universal Optimization Algorithm
 
-Основной алгоритм находится в `programs/arbitrage_program/src/arbitrage_engine/arb_algorithms/universal.rs`.
+The main algorithm is located in `programs/arbitrage_program/src/arbitrage_engine/arb_algorithms/universal.rs`.
 
-**Принцип работы:**
-1. **Анализ цен** - вычисляется разница цен между двумя пулами
-2. **Бинарный поиск** - используется модифицированный бинарный поиск для нахождения оптимальной суммы
-3. **Итеративная оптимизация** - алгоритм итеративно уменьшает шаг поиска до достижения оптимума
-4. **Проверка прибыльности** - на каждой итерации рассчитывается потенциальная прибыль
+**How it works:**
+1. **Price Analysis** - calculates price difference between two pools
+2. **Binary Search** - uses modified binary search to find optimal amount
+3. **Iterative Optimization** - algorithm iteratively reduces search step until reaching optimum
+4. **Profitability Check** - calculates potential profit on each iteration
 
-Это базовый алгоритм. В полной версии реализованы еще 2 более сложных алгоритма, специально оптимизированных для минимизации потребления Compute Units (CU). Например специальный для DLMM, так как там необходима итерация по бинам.
+This is the basic algorithm. The full version implements 2 more complex algorithms specifically optimized to minimize Compute Units (CU) consumption. For example, a special one for DLMM, as it requires iteration through bins.
 
-## Оптимизация десериализации
+## Deserialization Optimization
 
-### Частичная десериализация аккаунтов
+### Partial Account Deserialization
 
-Программа использует кастомную десериализацию для экономии CU:
+The program uses custom deserialization to save CU:
 
 ```rust
-// Пример из Pumpswap
+// Example from Pumpswap
 let (base_mint_pubkey, quote_mint_pubkey) = PfAmmPool::deserialize_mints(&pool_bytes)?;
 let fee_config = FeeConfig::deserialize_data(&fee_config_bytes)?;
 ```
 
-**Преимущества подхода:**
-- **Экономия CU** - десериализуются только необходимые поля
-- **Снижение потребления памяти** - избегаем загрузки избыточных данных
+**Advantages of this approach:**
+- **CU Savings** - only necessary fields are deserialized
+- **Reduced Memory Consumption** - avoids loading redundant data
 
-В полной версии для **Meteora DLMM** используется `bytemark` подход:
-- `bin_array` структуры слишком большие для полной десериализации (10000+ bytes/account)
+In the full version for **Meteora DLMM**, a `bytemark` approach is used:
+- `bin_array` structures are too large for full deserialization (10000+ bytes/account)
 
-### Использование AccountInfo
+### Using AccountInfo
 
-Программа использует `AccountInfo` вместо Anchor аккаунтов для устранения лишних проверок и дополнительной экономии CU.
+The program uses `AccountInfo` instead of Anchor accounts to eliminate unnecessary checks and achieve additional CU savings.
 
-## Swap методы
+## Swap Methods
 
-### Точные расчеты без погрешностей
+### Precise Calculations Without Errors
 
-Каждый DEX имеет собственную реализацию swap методов:
+Each DEX has its own implementation of swap methods:
 
 ```rust
 impl BasePool for PumpswapPool {
     fn swap(&self, amount_in: u64, min_amount_out: u64, source_to_intermediate: bool) -> Result<()> {
-        // CPI вызов к оригинальному DEX
-        // Расчет amount_out 1:1 как в оригинале
+        // CPI call to original DEX
+        // Calculate amount_out 1:1 as in original
     }
 }
 ```
 
-**Ключевые особенности:**
-- **CPI вызовы** к оригинальным программам DEX
-- **Идентичные расчеты** - математика полностью соответствует оригинальным DEX
-- **Нулевые погрешности** - результаты совпадают с прямыми вызовами DEX
-- **Унифицированный интерфейс** через трейт `BasePool`
+**Key features:**
+- **CPI calls** to original DEX programs
+- **Identical calculations** - math fully matches original DEXs
+- **Zero errors** - results match direct DEX calls
+- **Unified interface** through `BasePool` trait
 
-## Context аккаунты для верификации
+## Context Accounts for Verification
 
-### Система двойной проверки прибыльности
+### Double Profitability Check System
 
-Программа реализует дополнительный уровень безопасности через context аккаунты:
+The program implements an additional security layer through context accounts:
 
-**Процесс верификации:**
-1. **Инициализация контекста** - создается `ArbitrageContext` аккаунт перед выполнением арбитража
-2. **Сохранение начального состояния** - записываются балансы SOL и токенов пользователя
-3. **Выполнение арбитража** - основная логика арбитража между пулами
-4. **Верификация результата** - проверяется, что итоговые балансы больше начальных
+**Verification process:**
+1. **Context Initialization** - creates `ArbitrageContext` account before executing arbitrage
+2. **Save Initial State** - records user's SOL and token balances
+3. **Execute Arbitrage** - main arbitrage logic between pools
+4. **Verify Result** - checks that final balances are greater than initial ones
 
 ```rust
-// Инициализация контекста
+// Context initialization
 arb_ctx.start_sol = user.lamports();
 arb_ctx.start_src = get_ata_balance(user_source_token_account)?;
 
-// Верификация после арбитража
+// Verification after arbitrage
 let start_total = arb_ctx.start_sol + arb_ctx.start_src;
 let curr_total = curr_sol + curr_src;
 require!(curr_total >= start_total, ErrorCode::ArbitrageVerificationFailed);
 ```
 
-Это обеспечивает дополнительную гарантию прибыльности операции на уровне программы.
+This provides additional guarantee of operation profitability at the program level.
 
-## Архитектура
+## Architecture
 
 ```
 programs/arbitrage_program/src/
-├── arbitrage_engine/          # Ядро арбитражного движка
-│   ├── arb_algorithms/        # Алгоритмы оптимизации
-│   └── base/                  # Базовые трейты и структуры
-├── dex/                       # Интеграции с DEX
-│   ├── pumpswap/             # Pumpswap интеграция
-│   └── raydium_amm/          # Raydium AMM интеграция
-├── instructions/              # Anchor инструкции
-├── commons/                   # Общие утилиты
-│   └── arbitrage_context/    # Система верификации контекста
-└── state/                     # Состояние программы
+├── arbitrage_engine/          # Arbitrage engine core
+│   ├── arb_algorithms/        # Optimization algorithms
+│   └── base/                  # Base traits and structures
+├── dex/                       # DEX integrations
+│   ├── pumpswap/             # Pumpswap integration
+│   └── raydium_amm/          # Raydium AMM integration
+├── instructions/              # Anchor instructions
+├── commons/                   # Common utilities
+│   └── arbitrage_context/    # Context verification system
+└── state/                     # Program state
 ```
 
-## Демонстрационная транзакция
+## Demo Transaction
 
-Пример реальной транзакции арбитража из полной версии программы:
+Example of a real arbitrage transaction from the full version of the program:
 
 **[wz1aRw63hbkr8cssAaDvYdvBsPM7Cru1hL9jZBVWvZUjjWaKhh8Cid4Dz2a6tf6PyTtx23P5jkBozPMUdbRq3Jf](https://solscan.io/tx/wz1aRw63hbkr8cssAaDvYdvBsPM7Cru1hL9jZBVWvZUjjWaKhh8Cid4Dz2a6tf6PyTtx23P5jkBozPMUdbRq3Jf)**
 
-**Структура транзакции:**
-1. **Flashloan** - берется займ 100 WSOL (~$22,720) на Kamino
-2. **Инициализация PDA** - создается контекст аккаунт для верификации
-3. **Арбитраж** - выполняется арбитраж между Meteora DLMM и Pumpswap:
-   - Swap 20.51 WSOL → 1,516,206 dollo на Meteora DLMM
-   - Swap 1,516,206 dollo → 21.61 WSOL на Pumpswap
-4. **Верификация и возврат** - проверяется прибыльность и возвращается flashloan
+**Transaction structure:**
+1. **Flashloan** - borrows 100 WSOL (~$22,720) on Kamino
+2. **PDA Initialization** - creates context account for verification
+3. **Arbitrage** - executes arbitrage between Meteora DLMM and Pumpswap:
+   - Swap 20.51 WSOL → 1,516,206 dollo on Meteora DLMM
+   - Swap 1,516,206 dollo → 21.61 WSOL on Pumpswap
+4. **Verification and Return** - checks profitability and returns flashloan
 
-**Технические особенности:**
-- Транзакция подписана через **advanceNonce** для предотвращения повторного выполнения
-- Используется ALT для уменьшения размера транзакции для увеличения ее индекса приоритета у валидатора и возможности передать большое кол-во аккаунтов.
-- Возможность отправки с нескольких локаций одновременно
-- Прошла через обычное SWQOS RPC (обычно используются tip для forwarders типа 0slot, nextblock, bloxroute)
-- **Прибыль**: 1.1 WSOL (~$250) с оборота $22,720
+**Technical features:**
+- Transaction signed through **advanceNonce** to prevent re-execution
+- Uses ALT to reduce transaction size for increasing priority index at validator and ability to pass large number of accounts
+- Ability to send from multiple locations simultaneously
+- Passed through regular SWQOS RPC (usually tips are used for forwarders like 0slot, nextblock, bloxroute)
+- **Profit**: 1.1 WSOL (~$250) from $22,720 turnover
 
-Данная демонстрационная версия показывает основные принципы и сложности реализации эффективного арбитража на Solana. Полная версия содержит значительно больше протоколов, алгоритмов оптимизации и продвинутых техник управления ресурсами.
+This demo version shows the main principles and complexities of implementing efficient arbitrage on Solana. The full version contains significantly more protocols, optimization algorithms, and advanced resource management techniques.
